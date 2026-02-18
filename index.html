@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>Doom Mod Patcher</title>
+</head>
+<body>
+<h2>Doom Mod Patcher</h2>
+<input type="file" id="fileInput">
+<button onclick="patch()">PATCHUJ</button>
+<p id="status"></p>
+
+<script>
+async function sha256(buffer){
+  const hash = await crypto.subtle.digest("SHA-256", buffer);
+  return Array.from(new Uint8Array(hash)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+
+async function patch(){
+  const file = document.getElementById("fileInput").files[0];
+  if(!file){ alert("Wybierz plik!"); return; }
+
+  document.getElementById("status").innerText = "Liczenie hash...";
+  const buf = await file.arrayBuffer();
+  const userHash = await sha256(buf);
+
+  const expectedHash = "6fdf361847b46228cfebd9f3af09cd844282ac75f3edbb61ca4cb27103ce2e7f"; // wpisz hash doom.wad
+
+  if(userHash !== expectedHash){
+    document.getElementById("status").innerText = "Zły plik!";
+    return;
+  }
+
+  document.getElementById("status").innerText = "Łączenie części moda...";
+
+  const parts = [];
+  for(let i=1;i<=16;i++){
+    const num = i.toString().padStart(2,"0");
+    const res = await fetch(`part${num}.bin`);
+    const partBuf = new Uint8Array(await res.arrayBuffer());
+    parts.push(partBuf);
+  }
+
+  // łączenie w jeden plik
+  let totalLen = parts.reduce((a,b)=>a+b.length,0);
+  let merged = new Uint8Array(totalLen);
+  let offset = 0;
+  for(const p of parts){
+    merged.set(p, offset);
+    offset += p.length;
+  }
+
+  // pobranie jako doom_mod.wad
+  const blob = new Blob([merged]);
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "doom_mod.wad";
+  a.click();
+
+  document.getElementById("status").innerText = "Gotowe!";
+}
+</script>
+</body>
+</html>
