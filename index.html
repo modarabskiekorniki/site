@@ -24,10 +24,9 @@ async function patch(){
   const buf = await file.arrayBuffer();
   const userHash = await sha256(buf);
 
-  const expectedHash = "6fdf361847b46228cfebd9f3af09cd844282ac75f3edbb61ca4cb27103ce2e7f"; // wpisz hash doom.wad
-
+  const expectedHash = "6fdf361847b46228cfebd9f3af09cd844282ac75f3edbb61ca4cb27103ce2e7f"; // SHA256 doom.wad
   if(userHash !== expectedHash){
-    document.getElementById("status").innerText = "Zły plik!";
+    document.getElementById("status").innerText = "Plik nie jest oryginalnym doom.wad!";
     return;
   }
 
