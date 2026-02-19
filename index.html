@@ -5,26 +5,51 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Doom Mod Patcher</title>
 <style>
+<<<<<<< codex/modify-doom.wad-based-on-hash-check
+  body { font-family: system-ui, sans-serif; max-width: 860px; margin: 2rem auto; padding: 0 1rem; }
+  .card { border: 1px solid #ccc; border-radius: 12px; padding: 1rem 1.25rem; }
+  code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 4px; }
+  button { margin-top: 0.8rem; padding: 0.6rem 1rem; cursor: pointer; }
+  #status { margin-top: 1rem; font-weight: 600; white-space: pre-line; }
+  label { display:block; margin-top:0.8rem; font-weight:600; }
+=======
   body { font-family: system-ui, sans-serif; max-width: 760px; margin: 2rem auto; padding: 0 1rem; }
   .card { border: 1px solid #ccc; border-radius: 12px; padding: 1rem 1.25rem; }
   code { background: #f4f4f4; padding: 0.1rem 0.3rem; border-radius: 4px; }
   button { margin-top: 0.8rem; padding: 0.6rem 1rem; cursor: pointer; }
   #status { margin-top: 1rem; font-weight: 600; }
+>>>>>>> main
 </style>
 </head>
 <body>
   <h1>Doom Mod Patcher</h1>
   <div class="card">
+<<<<<<< codex/modify-doom.wad-based-on-hash-check
+    <p>Wybierz oryginalny <code>doom.wad</code>. Najpierw sprawdzamy SHA-256, a potem patchujemy w trybie „SLADE-like” (podmiana tylko różniących się lumpów). Jeśli manifest lumpów nie istnieje, użyty będzie fallback XOR.</p>
+
+    <label for="fileInput">Plik wejściowy</label>
+    <input type="file" id="fileInput" accept=".wad,application/octet-stream">
+
+=======
     <p>Wybierz <code>doom.wad</code>. Program sprawdzi SHA-256 i zastosuje binarną łatkę podzieloną na 16 części.</p>
     <input type="file" id="fileInput" accept=".wad,application/octet-stream">
     <br>
+>>>>>>> main
     <button id="patchBtn">Sprawdź i patchuj</button>
     <p id="status" aria-live="polite"></p>
   </div>
 
 <script>
 const PART_COUNT = 16;
+<<<<<<< codex/modify-doom.wad-based-on-hash-check
+const DEPLOY_VERSION = "2026-02-19-1";
+
+function setStatus(message) {
+  document.getElementById("status").textContent = `${message}\nWersja deploy: ${DEPLOY_VERSION}`;
+}
+=======
 const DEPLOY_VERSION = "2026-02-18-2";
+>>>>>>> main
 
 async function sha256(buffer) {
   const hash = await crypto.subtle.digest("SHA-256", buffer);
@@ -33,6 +58,31 @@ async function sha256(buffer) {
 
 async function fetchExpectedHash() {
   const res = await fetch(`hash.txt?v=${DEPLOY_VERSION}`, { cache: "no-store" });
+<<<<<<< codex/modify-doom.wad-based-on-hash-check
+  if (!res.ok) throw new Error("Nie udało się pobrać hash.txt");
+  return (await res.text()).trim().toLowerCase();
+}
+
+function readAscii(bytes, start, length) {
+  let out = "";
+  for (let i = 0; i < length; i++) {
+    const ch = bytes[start + i];
+    if (ch === 0) break;
+    out += String.fromCharCode(ch);
+  }
+  return out;
+}
+
+function parseWad(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  const ident = readAscii(bytes, 0, 4);
+  if (ident !== "IWAD" && ident !== "PWAD") throw new Error("To nie wygląda na poprawny WAD.");
+
+  const lumpCount = view.getInt32(4, true);
+  const dirOffset = view.getInt32(8, true);
+  if (lumpCount < 0 || dirOffset < 12 || dirOffset + lumpCount * 16 > bytes.length) {
+    throw new Error("Uszkodzony nagłówek/directory WAD.");
+=======
   if (!res.ok) {
     throw new Error("Nie udało się pobrać hash.txt");
   }
@@ -58,10 +108,115 @@ async function fetchPatchMask() {
   for (const part of parts) {
     merged.set(part, offset);
     offset += part.length;
+>>>>>>> main
   }
   return merged;
 }
 
+<<<<<<< codex/modify-doom.wad-based-on-hash-check
+  const lumps = [];
+  for (let i = 0; i < lumpCount; i++) {
+    const entry = dirOffset + i * 16;
+    const filePos = view.getInt32(entry, true);
+    const size = view.getInt32(entry + 4, true);
+    const name = readAscii(bytes, entry + 8, 8);
+    if (filePos < 0 || size < 0 || filePos + size > bytes.length) {
+      throw new Error(`Uszkodzony lump ${i} (${name}).`);
+    }
+
+    const data = new Uint8Array(size);
+    data.set(bytes.subarray(filePos, filePos + size));
+    lumps.push({ name, data });
+  }
+
+  return { ident, lumps };
+}
+
+function buildWad(ident, lumps) {
+  const encoder = new TextEncoder();
+  const lumpCount = lumps.length;
+
+  const dataSize = lumps.reduce((sum, lump) => sum + lump.data.length, 0);
+  const dirOffset = 12 + dataSize;
+  const totalSize = dirOffset + lumpCount * 16;
+  const out = new Uint8Array(totalSize);
+  const view = new DataView(out.buffer);
+
+  out.set(encoder.encode(ident), 0);
+  view.setInt32(4, lumpCount, true);
+  view.setInt32(8, dirOffset, true);
+
+  let dataOffset = 12;
+  for (let i = 0; i < lumpCount; i++) {
+    const lump = lumps[i];
+    out.set(lump.data, dataOffset);
+
+    const dirEntry = dirOffset + i * 16;
+    view.setInt32(dirEntry, dataOffset, true);
+    view.setInt32(dirEntry + 4, lump.data.length, true);
+
+    const nameBytes = new Uint8Array(8);
+    for (let j = 0; j < Math.min(8, lump.name.length); j++) nameBytes[j] = lump.name.charCodeAt(j);
+    out.set(nameBytes, dirEntry + 8);
+
+    dataOffset += lump.data.length;
+  }
+
+  return out;
+}
+
+async function fetchLumpManifest(expectedHash) {
+  const res = await fetch(`wad_lump_patch.json?v=${DEPLOY_VERSION}`, { cache: "no-store" });
+  if (!res.ok) return null;
+
+  const manifest = await res.json();
+  if (!manifest || !Array.isArray(manifest.replacements)) throw new Error("wad_lump_patch.json ma zły format.");
+  if (manifest.baseHash && manifest.baseHash.toLowerCase() !== expectedHash.toLowerCase()) {
+    throw new Error("baseHash w wad_lump_patch.json nie zgadza się z hash.txt.");
+  }
+  return manifest;
+}
+
+async function applyLumpPatch(originalBytes, expectedHash) {
+  const manifest = await fetchLumpManifest(expectedHash);
+  if (!manifest) return null;
+
+  const wad = parseWad(originalBytes);
+  const indexByName = new Map();
+  wad.lumps.forEach((l, idx) => indexByName.set(l.name.toUpperCase(), idx));
+
+  let replacedCount = 0;
+  for (const item of manifest.replacements) {
+    const targetName = String(item.name || "").toUpperCase();
+    const file = item.file;
+    if (!targetName || !file) throw new Error("Nieprawidłowy wpis w wad_lump_patch.json (wymagane: name, file).");
+
+    const idx = indexByName.get(targetName);
+    if (idx === undefined) continue;
+
+    const res = await fetch(`${file}?v=${DEPLOY_VERSION}`, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Brak pliku lumpa: ${file}`);
+    wad.lumps[idx].data = new Uint8Array(await res.arrayBuffer());
+    replacedCount++;
+  }
+
+  if (replacedCount === 0) {
+    throw new Error("Manifest lumpów jest dostępny, ale nie podmieniono żadnego lumpa.");
+  }
+
+  const out = buildWad(wad.ident, wad.lumps);
+  return { bytes: out, replacedCount };
+}
+
+async function fetchPatchMask() {
+  const parts = [];
+  for (let i = 1; i <= PART_COUNT; i++) {
+    const num = i.toString().padStart(2, "0");
+    const filename = `patch${num}.bin?v=${DEPLOY_VERSION}`;
+    const res = await fetch(filename, { cache: "no-store" });
+    if (!res.ok) throw new Error(`Brak pliku ${filename}`);
+    parts.push(new Uint8Array(await res.arrayBuffer()));
+=======
 function applyXorPatch(originalBytes, maskBytes) {
   if (originalBytes.length !== maskBytes.length) {
     throw new Error(`Rozmiar doom.wad (${originalBytes.length} B) nie zgadza się z rozmiarem łatki (${maskBytes.length} B).`);
@@ -70,10 +225,19 @@ function applyXorPatch(originalBytes, maskBytes) {
   const output = new Uint8Array(originalBytes.length);
   for (let i = 0; i < originalBytes.length; i++) {
     output[i] = originalBytes[i] ^ maskBytes[i];
+>>>>>>> main
   }
   return output;
 }
 
+<<<<<<< codex/modify-doom.wad-based-on-hash-check
+  const totalLen = parts.reduce((sum, p) => sum + p.length, 0);
+  const merged = new Uint8Array(totalLen);
+  let offset = 0;
+  for (const p of parts) {
+    merged.set(p, offset);
+    offset += p.length;
+=======
 async function patch() {
   const statusEl = document.getElementById("status");
   const patchBtn = document.getElementById("patchBtn");
@@ -82,8 +246,70 @@ async function patch() {
   if (!file) {
     alert("Wybierz plik doom.wad");
     return;
+>>>>>>> main
+  }
+  return merged;
+}
+
+function applyXorPatch(originalBytes, maskBytes) {
+  if (originalBytes.length !== maskBytes.length) {
+    throw new Error(`Rozmiar doom.wad (${originalBytes.length} B) nie zgadza się z rozmiarem łatki (${maskBytes.length} B).`);
+  }
+  const out = new Uint8Array(originalBytes.length);
+  for (let i = 0; i < originalBytes.length; i++) out[i] = originalBytes[i] ^ maskBytes[i];
+  return out;
+}
+
+<<<<<<< codex/modify-doom.wad-based-on-hash-check
+function downloadWad(bytes) {
+  const blob = new Blob([bytes], { type: "application/octet-stream" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = "doom_mod.wad";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
+async function patch() {
+  const patchBtn = document.getElementById("patchBtn");
+  const file = document.getElementById("fileInput").files[0];
+  if (!file) {
+    alert("Wybierz plik doom.wad");
+    return;
   }
 
+  patchBtn.disabled = true;
+  try {
+    setStatus("Liczenie SHA-256 oryginalnego doom.wad...");
+    const originalBuf = await file.arrayBuffer();
+    const originalBytes = new Uint8Array(originalBuf);
+    const userHash = await sha256(originalBuf);
+
+    const expectedHash = await fetchExpectedHash();
+    if (userHash !== expectedHash) {
+      setStatus("Hash się nie zgadza — to nie jest oczekiwany oryginalny doom.wad.");
+      return;
+    }
+
+    setStatus("Hash poprawny. Próba patchowania tylko różniących się lumpów (SLADE-like)...");
+    const lumpResult = await applyLumpPatch(originalBytes, expectedHash);
+    if (lumpResult) {
+      downloadWad(lumpResult.bytes);
+      setStatus(`Gotowe! Podmieniono ${lumpResult.replacedCount} lumpów i pobrano doom_mod.wad.`);
+      return;
+    }
+
+    setStatus("Brak wad_lump_patch.json — fallback do patchowania XOR...");
+    const mask = await fetchPatchMask();
+    const patched = applyXorPatch(originalBytes, mask);
+    downloadWad(patched);
+    setStatus("Gotowe! Użyto fallback XOR i pobrano doom_mod.wad.");
+  } catch (err) {
+    setStatus(`Błąd: ${err.message}`);
+=======
   patchBtn.disabled = true;
 
   try {
@@ -117,13 +343,18 @@ async function patch() {
     statusEl.textContent = "Gotowe! Pobieranie doom_mod.wad rozpoczęte.";
   } catch (err) {
     statusEl.textContent = `Błąd: ${err.message}`;
+>>>>>>> main
   } finally {
     patchBtn.disabled = false;
   }
 }
 
 document.getElementById("patchBtn").addEventListener("click", patch);
+<<<<<<< codex/modify-doom.wad-based-on-hash-check
+setStatus("Gotowy.");
+=======
 document.getElementById("status").insertAdjacentText("beforeend", `Wersja deploy: ${DEPLOY_VERSION}`);
+>>>>>>> main
 </script>
 </body>
 </html>
